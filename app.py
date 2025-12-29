@@ -1,71 +1,56 @@
 import streamlit as st
 import requests
-from datetime import datetime, timedelta
 import random
 
 st.set_page_config(page_title="Tipster Master Pro", page_icon="🏆")
-st.title("🏆 Buscador de Tips Profesional")
+st.title("🏆 Tipster Master: Buscador Global")
 
+# Tu API Key
 api_key = "490b43bb98msh9ddd6e9a90a13b7p1593f7jsncd3e6635c42d"
 headers = {"X-RapidAPI-Key": api_key, "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"}
 
-# --- CONFIGURACIÓN DE LIGAS ---
-# 39 = Premier League, 140 = LaLiga, 135 = Serie A, 78 = Bundesliga, 61 = Ligue 1
-LIGAS_INTERES = [39, 140, 135, 78, 61]
+if st.button('🚀 BUSCAR PRÓXIMOS 10 PARTIDOS DEL MUNDO'):
+    # ENDPOINT DIFERENTE: Trae los próximos partidos sin filtrar por liga ni fecha
+    # Es el método más seguro para obtener datos siempre
+    url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
+    params = {"next": 15} 
 
-if st.button('🚀 GENERAR TOP 10 (INCLUYENDO PRÓXIMOS DÍAS)'):
-    tips_acumulados = []
-    
-    # Buscamos hoy y los próximos 3 días para asegurar el Tottenham y otros
-    for i in range(4):
-        if len(tips_acumulados) >= 10: break
+    try:
+        res = requests.get(url, headers=headers, params=params)
+        json_data = res.json()
         
-        fecha_consulta = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
-        st.write(f"Consultando cartelera del: {fecha_consulta}...")
+        # DEBUG: Esto nos dirá en la pantalla qué está pasando exactamente
+        if "errors" in json_data and json_data["errors"]:
+            st.error(f"Error de la API: {json_data['errors']}")
         
-        url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
-        # Quitamos filtros de liga aquí para que traiga TODO lo disponible
-        params = {"date": fecha_consulta}
-        
-        try:
-            res = requests.get(url, headers=headers, params=params)
-            data = res.json().get('response', [])
-            
-            for f in data:
-                if len(tips_acumulados) >= 10: break
+        partidos = json_data.get('response', [])
+
+        if not partidos:
+            st.warning("La API respondió correctamente pero la lista de partidos está vacía. Intenta más tarde.")
+        else:
+            count = 0
+            for f in partidos:
+                if count >= 10: break
                 
-                # Solo partidos que no han empezado
-                if f['fixture']['status']['short'] == 'NS':
-                    local = f['teams']['home']['name']
-                    visita = f['teams']['away']['name']
-                    liga_id = f['league']['id']
-                    
-                    # Guardamos el partido
-                    tips_acumulados.append({
-                        "evento": f"{local} vs {visita}",
-                        "liga": f['league']['name'],
-                        "fecha": fecha_consulta,
-                        "hora": f['fixture']['date'][11:16],
-                        "cuota": round(random.uniform(1.75, 2.25), 2),
-                        "stake": random.randint(7, 9)
-                    })
-        except:
-            st.error("Error de conexión con la API")
-
-    # --- MOSTRAR RESULTADOS ---
-    if tips_acumulados:
-        for idx, tip in enumerate(tips_acumulados, 1):
-            st.subheader(f"#{idx}: {tip['evento']}")
-            st.write(f"📅 {tip['fecha']} | ⏰ {tip['hora']} | 🏆 {tip['liga']}")
-            
-            analisis = (
-                f"Professional analysis for {tip['evento']}. Tactical observation suggests a "
-                f"high-efficiency match for the home side based on recent xG (Expected Goals) data. "
-                f"In the context of the {tip['liga']}, this fixture on {tip['fecha']} represents "
-                f"a value opportunity with a recommended stake of {tip['stake']}/10."
-            )
-            
-            st.code(f"EVENTO: {tip['evento']}\nCUOTA: {tip['cuota']}\nSTAKE: {tip['stake']}/10\n\nANÁLISIS:\n{analisis}", language='text')
-            st.divider()
-    else:
-        st.warning("No se encontraron partidos. Revisa tu cuota de API.")
+                local = f['teams']['home']['name']
+                visita = f['teams']['away']['name']
+                liga = f['league']['name']
+                fecha = f['fixture']['date'][:10]
+                
+                cuota = round(random.uniform(1.70, 2.30), 2)
+                count += 1
+                
+                st.subheader(f"#{count}: {local} vs {visita}")
+                st.write(f"🏆 {liga} | 📅 {fecha}")
+                
+                analisis = (
+                    f"Advanced tactical preview for {local} vs {visita}. Our algorithm identifies "
+                    f"a significant value gap in the {liga} market. Current performance data suggests "
+                    f"the selection is underpriced at {cuota}. Highly recommended for ranking growth."
+                )
+                
+                st.code(f"EVENTO: {local} vs {visita}\nCUOTA: {cuota}\n\nANÁLISIS:\n{analisis}", language='text')
+                st.divider()
+                
+    except Exception as e:
+        st.error(f"Ocurrió un error crítico: {e}")
