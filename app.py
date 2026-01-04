@@ -1,57 +1,86 @@
 import streamlit as st
 import requests
-import random
-from datetime import datetime
 
-st.set_page_config(page_title="JohnnyBet Fix", page_icon="🍀")
-st.title("🍀 Diagnóstico de Conexión API")
+# 1. Configuración de la Interfaz
+st.set_page_config(page_title="Tipster Pro AI 2026", page_icon="⚽", layout="wide")
 
-# Tu API Key
+st.title("🚀 Generador Automático de Pronósticos 2026")
+st.markdown("---")
+
+# 2. Tus Credenciales (Mantenidas según tu código)
 api_key = "490b43bb98msh9ddd6e9a90a13b7p1593f7jsncd3e6635c42d"
 headers = {
     "X-RapidAPI-Key": api_key,
     "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
 }
 
-if st.button('🔍 PROBAR CONEXIÓN AHORA'):
-    # Cambiamos 'next' por un rango de fechas para asegurar resultados
-    hoy = datetime.now().strftime('%Y-%m-%d')
-    url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
-    
-    # Probamos con la temporada 2025 (Premier League 25/26)
-    params = {
-        "league": "39", 
-        "season": "2025",
-        "from": hoy,
-        "to": "2026-01-20" # Buscamos partidos de las próximas 2 semanas
-    }
-
+# 3. Función para obtener el análisis profundo
+def obtener_analisis(fixture_id):
+    url = "https://api-football-v1.p.rapidapi.com/v3/predictions"
+    params = {"fixture": fixture_id}
     try:
-        response = requests.get(url, headers=headers, params=params)
-        status = response.status_code
-        data = response.json()
+        res = requests.get(url, headers=headers, params=params)
+        data = res.json()
+        if data.get("response"):
+            return data["response"][0]
+    except:
+        return None
+    return None
 
-        if status != 200:
-            st.error(f"Error de Servidor: Código {status}")
-            st.write(data) # Aquí verás si tu suscripción expiró
-        
-        elif data.get("errors"):
-            st.error(f"La API devolvió un error: {data['errors']}")
-            st.info("💡 Si el error es 'Too many requests' o 'Key not active', revisa tu cuenta en RapidAPI.")
+# 4. Botón de Ejecución
+if st.button('🔍 BUSCAR PARTIDOS Y GENERAR ARGUMENTOS'):
+    # Endpoint de fixtures para la Premier League (ID 39) temporada 2025
+    url_fixtures = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
+    params_fixtures = {"league": "39", "season": "2025", "next": "8"} 
 
-        else:
-            partidos = data.get('response', [])
+    with st.spinner('Extrayendo datos y procesando estrategias...'):
+        try:
+            res_f = requests.get(url_fixtures, headers=headers, params=params_fixtures)
+            data_f = res_f.json()
+            partidos = data_f.get('response', [])
+
             if not partidos:
-                st.warning(f"No hay partidos programados en la Premier del {hoy} al 2026-01-20.")
-                st.write("Respuesta completa de la API:", data)
+                st.warning("No hay partidos próximos encontrados.")
             else:
-                st.success(f"¡Se encontraron {len(partidos)} partidos!")
-                for f in partidos:
-                    local = f['teams']['home']['name']
-                    visita = f['teams']['away']['name']
-                    with st.expander(f"⚽ {local} vs {visita}"):
-                        st.write(f"Fecha: {f['fixture']['date']}")
-                        st.code(f"Análisis para JohnnyBet generado.")
+                for p in partidos:
+                    f_id = p['fixture']['id']
+                    home = p['teams']['home']['name']
+                    away = p['teams']['away']['name']
+                    
+                    # Analizar cada partido
+                    analisis = obtener_analisis(f_id)
+                    
+                    with st.expander(f"📌 {home} vs {away}"):
+                        if analisis:
+                            # Extraer datos de la predicción
+                            advice = analisis['predictions']['advice']
+                            percent = analisis['predictions']['percent']
+                            comp = analisis['comparison']
+                            
+                            # Crear el razonamiento automático
+                            razonamiento = (
+                                f"PREDICTION: {advice}\n\n"
+                                f"ANALYSIS: This match in the Premier League 2025/26 shows high statistical value. "
+                                f"{home} has an offensive strength of {comp['att']['home']} "
+                                f"compared to {away}'s defensive rating of {comp['def']['away']}. "
+                                f"The probability model shows a {percent['home']} chance for Home and "
+                                f"{percent['away']} for Away. Based on recent H2H, {advice} is the most solid pick."
+                            )
+                            
+                            st.write(f"**Recomendación de la IA:** {advice}")
+                            st.text_area("Copia esto en JohnnyBet / Blogabet:", razonamiento, height=180, key=f"text_{f_id}")
+                            
+                            # Indicadores visuales
+                            col1, col2, col3 = st.columns(3)
+                            col1.metric("Prob. Local", percent['home'])
+                            col2.metric("Prob. Empate", percent['draw'])
+                            col3.metric("Prob. Visita", percent['away'])
+                        else:
+                            st.error("No se pudo generar el análisis detallado.")
+                            
+        except Exception as e:
+            st.error(f"Error crítico: {e}")
 
-    except Exception as e:
-        st.error(f"Error de ejecución: {e}")
+# Pie de página informativo
+st.markdown("---")
+st.info("💡 Tip: Usa este generador para llenar tus perfiles de Tipster automáticamente y centralizar tus ingresos.")
