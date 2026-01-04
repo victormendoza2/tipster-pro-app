@@ -1,9 +1,10 @@
 import streamlit as st
 import requests
+from datetime import datetime
 
 # 1. Configuración de la Interfaz
-st.set_page_config(page_title="JohnnyBet Helper 2026", page_icon="🍀", layout="wide")
-st.title("🍀 Asistente Tipster Pro - Enero 2026")
+st.set_page_config(page_title="Tipster Pro 2026", page_icon="🍀", layout="wide")
+st.title("🍀 Asistente JohnnyBet - Enero 2026")
 
 # 2. Tus Credenciales
 api_key = "490b43bb98msh9ddd6e9a90a13b7p1593f7jsncd3e6635c42d"
@@ -23,62 +24,55 @@ def obtener_analisis(fixture_id):
     except:
         return None
 
-# 4. Selector de modo en el Sidebar
-modo = st.sidebar.selectbox("Selecciona qué buscar:", ["Partidos Próximos", "Partidos En Vivo (Live)"])
-league_id = "39" # Premier League
-
-if st.button('🔍 BUSCAR VALOR'):
+# 4. Lógica de búsqueda mejorada
+if st.button('🔍 BUSCAR PARTIDOS PARA HOY (4 ENE 2026)'):
+    # Intentamos primero buscar por la fecha exacta de hoy
     url_fixtures = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
+    fecha_hoy = "2026-01-04" 
     
-    # Ajuste de parámetros según el modo
-    if modo == "Partidos En Vivo (Live)":
-        params_fixtures = {"live": "all", "league": league_id}
-    else:
-        # Buscamos los próximos 15 partidos para asegurar resultados en enero
-        params_fixtures = {"league": league_id, "season": "2025", "next": "15"} 
-
-    with st.spinner('Conectando con la API de Football...'):
+    with st.spinner(f'Buscando eventos para {fecha_hoy}...'):
         try:
-            res_f = requests.get(url_fixtures, headers=headers, params=params_fixtures)
+            # Quitamos el filtro de liga para que aparezca CUALQUIER partido disponible
+            res_f = requests.get(url_fixtures, headers=headers, params={"date": fecha_hoy})
             data_f = res_f.json()
             partidos = data_f.get('response', [])
 
+            # Si por la fecha no hay nada, forzamos los siguientes 10 del mundo
             if not partidos:
-                st.warning(f"No se encontraron partidos {modo.lower()}. Prueba con el modo 'En Vivo' o verifica si la liga ya terminó su jornada.")
-                # Debug por si la API devuelve errores de suscripción
-                if data_f.get("errors"):
-                    st.error(f"Error técnico: {data_f['errors']}")
+                st.info("No hay partidos registrados para la fecha exacta, buscando los próximos 10 disponibles...")
+                res_f = requests.get(url_fixtures, headers=headers, params={"next": "10"})
+                partidos = res_f.json().get('response', [])
+
+            if not partidos:
+                st.error("Sigue sin haber respuesta. Esto puede ser un problema de tu suscripción en RapidAPI.")
+                if "errors" in data_f: st.write(data_f["errors"])
             else:
-                st.success(f"Se encontraron {len(partidos)} eventos.")
+                st.success(f"Se encontraron {len(partidos)} partidos.")
                 for p in partidos:
                     f_id = p['fixture']['id']
                     home = p['teams']['home']['name']
                     away = p['teams']['away']['name']
-                    status = p['fixture']['status']['long']
+                    liga = p['league']['name']
                     
-                    with st.expander(f"⚽ {home} vs {away} ({status})"):
+                    with st.expander(f"⚽ {liga}: {home} vs {away}"):
                         analisis = obtener_analisis(f_id)
-                        
                         if analisis:
                             advice = analisis['predictions']['advice']
                             percent = analisis['predictions']['percent']
                             
-                            # Razonamiento mejorado para Blogabet/JohnnyBet
-                            razonamiento = (
+                            texto_tipster = (
                                 f"MATCH: {home} vs {away}\n"
-                                f"DATE: {p['fixture']['date'][:10]}\n"
-                                f"PICK: {advice}\n\n"
-                                f"ANALYSIS: Analysis for the 2025/26 season indicates a strong pattern for this match. "
-                                f"Probability model: Home {percent['home']} - Draw {percent['draw']} - Away {percent['away']}. "
-                                f"Current team form and defensive stats suggest that '{advice}' offers the best value for this fixture."
+                                f"PICK: {advice}\n"
+                                f"ANALYSIS: For this match on Jan 4, 2026, the model shows "
+                                f"probabilities of Home: {percent['home']}, Draw: {percent['draw']}, Away: {percent['away']}. "
+                                f"Strategic value found in {advice}."
                             )
-                            
-                            st.text_area("Texto para copiar:", razonamiento, height=150, key=f"txt_{f_id}")
+                            st.text_area("Copia esto:", texto_tipster, height=130, key=f"t_{f_id}")
                         else:
-                            st.info("Análisis detallado no disponible para este partido específico.")
-                            
-        except Exception as e:
-            st.error(f"Error de conexión: {e}")
+                            st.write("Predicción detallada no disponible para este partido.")
 
-st.markdown("---")
-st.caption("Configuración centralizada para 2026. Recuerda gestionar tus ganancias de Grass y Tipster en una misma cuenta.")
+        except Exception as e:
+            st.error(f"Error: {e}")
+
+st.divider()
+st.caption("Recuerda centralizar tus pagos de Grass y Tipster. Fecha actual del sistema: 4 de enero de 2026.")
