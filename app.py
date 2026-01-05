@@ -1,10 +1,10 @@
 import streamlit as st
 import requests
+from datetime import datetime, timedelta
 
 # --- CONFIGURACIÓN DE INTERFAZ ---
-st.set_page_config(page_title="JohnnyBet Ultimate Helper 2026", page_icon="🏆", layout="wide")
-st.title("🏆 Generador Definitivo de Pronósticos")
-st.subheader("Configuración para 04 de Enero, 2026")
+st.set_page_config(page_title="JohnnyBet Ultimate Helper", page_icon="🏆", layout="wide")
+st.title("🏆 Generador de Pronósticos Multifecha")
 
 # --- CREDENCIALES ---
 api_key = "490b43bb98msh9ddd6e9a90a13b7p1593f7jsncd3e6635c42d"
@@ -21,34 +21,44 @@ def get_data(endpoint, params):
     except Exception as e:
         return {"error": str(e)}
 
-# --- INTERFAZ DE USUARIO ---
-st.sidebar.header("Control de Búsqueda")
-opcion = st.sidebar.radio("Método de obtención:", 
-                         ["Próximos 15 partidos (Global)", 
-                          "Solo Premier League", 
-                          "Partidos en Vivo ahora"])
+# --- INTERFAZ DE USUARIO (SIDEBAR) ---
+st.sidebar.header("Configuración de Filtros")
 
-if st.button("🚀 OBTENER PARTIDOS AHORA"):
+# Selector de Fecha Dinámico
+hoy = datetime.now()
+opciones_fecha = {
+    "Hoy": hoy.strftime('%Y-%m-%d'),
+    "Mañana": (hoy + timedelta(days=1)).strftime('%Y-%m-%d'),
+    "Pasado Mañana": (hoy + timedelta(days=2)).strftime('%Y-%m-%d')
+}
+fecha_seleccionada = st.sidebar.selectbox("Selecciona el día de los partidos:", list(opciones_fecha.keys()))
+fecha_query = opciones_fecha[fecha_seleccionada]
+
+opcion = st.sidebar.radio("Ámbito de búsqueda:", 
+                         ["Todo el mundo", 
+                          "Solo Premier League", 
+                          "En Vivo (Solo hoy)"])
+
+# --- LÓGICA PRINCIPAL ---
+if st.button(f"🚀 BUSCAR PARTIDOS PARA: {fecha_seleccionada.upper()}"):
     partidos = []
     
-    with st.spinner("Consultando servidores de API-Football..."):
-        if "Próximos" in opcion:
-            data = get_data("fixtures", {"next": "15"})
-        elif "Premier" in opcion:
-            data = get_data("fixtures", {"league": "39", "season": "2025", "next": "10"})
-        else:
+    with st.spinner(f"Consultando API para el {fecha_query}..."):
+        if "En Vivo" in opcion:
             data = get_data("fixtures", {"live": "all"})
+        elif "Premier" in opcion:
+            # Temporada 2025 para partidos de Enero 2026
+            data = get_data("fixtures", {"league": "39", "season": "2025", "date": fecha_query})
+        else:
+            data = get_data("fixtures", {"date": fecha_query})
 
-        # --- VERIFICACIÓN DE ERRORES ---
         if data.get("errors"):
-            st.error(f"La API devolvió un error: {data['errors']}")
-            st.info("Nota: Verifica si tienes activada la suscripción gratuita o de pago en el dashboard de RapidAPI.")
+            st.error(f"Error de API: {data['errors']}")
         else:
             partidos = data.get("response", [])
 
     if not partidos:
-        st.warning("No se encontraron partidos con este filtro. Intenta con 'Próximos 15 partidos (Global)'.")
-        st.write("Respuesta completa del servidor (Debug):", data)
+        st.warning(f"No hay partidos registrados para el {fecha_query} con el filtro seleccionado.")
     else:
         st.success(f"¡Éxito! Encontrados {len(partidos)} partidos.")
         
@@ -57,9 +67,9 @@ if st.button("🚀 OBTENER PARTIDOS AHORA"):
             home = p['teams']['home']['name']
             away = p['teams']['away']['name']
             league = p['league']['name']
+            hora = p['fixture']['date'][11:16] # Extrae HH:MM
             
-            with st.expander(f"📌 {league}: {home} vs {away}"):
-                # Obtener predicción para este fixture
+            with st.expander(f"📌 [{hora}] {league}: {home} vs {away}"):
                 pred_data = get_data("predictions", {"fixture": f_id})
                 
                 if pred_data.get("response"):
@@ -67,19 +77,19 @@ if st.button("🚀 OBTENER PARTIDOS AHORA"):
                     advice = res['predictions']['advice']
                     probs = res['predictions']['percent']
                     
-                    # Formato optimizado para copiar y pegar
                     texto_final = (
                         f"MATCH: {home} vs {away}\n"
+                        f"DATE: {fecha_query} | LEAGUE: {league}\n"
                         f"PICK: {advice}\n"
-                        f"REASONING: Statistical analysis for Jan 2026 shows a win probability of "
-                        f"{probs['home']} for home and {probs['away']} for away. "
-                        f"Current team momentum supports the '{advice}' selection for JohnnyBet users."
+                        f"REASONING: Professional analysis for {fecha_query} shows win probabilities: "
+                        f"Home: {probs['home']}, Draw: {probs['draw']}, Away: {probs['away']}. "
+                        f"Data supports the '{advice}' strategy for JohnnyBet tipsters."
                     )
                     
-                    st.text_area("Copiar análisis:", texto_final, height=120, key=f"area_{f_id}")
+                    st.text_area("Análisis listo para copiar:", texto_final, height=140, key=f"area_{f_id}")
                     st.write(f"**Confianza:** Casa: {probs['home']} | Empate: {probs['draw']} | Fuera: {probs['away']}")
                 else:
-                    st.write("No hay predicción detallada, pero puedes usar los datos de la liga para tu estrategia.")
+                    st.write("Predicción detallada no disponible para este encuentro aún.")
 
 st.markdown("---")
-st.caption("Recuerda: Si estás usando Grass en este mismo equipo, este script no interfiere con tu conexión.")
+st.caption(f"Actualizado: {hoy.strftime('%d/%m/%Y')}. Compatible con ejecución simultánea de Grass.")
